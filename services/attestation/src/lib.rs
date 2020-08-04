@@ -1,52 +1,89 @@
 mod types;
+use binding_macro::{cycles, service};
+use protocol::traits::{ExecutorParams, ServiceResponse, ServiceSDK, StoreMap};
+use protocol::types::{Hash, ServiceContext};
 
-use derive_more::{Display, From};
+use crate::types::{AttestInfoPayload, QueryAttestedInfoPayload, QueryAttestedInfoResponse};
 
-use binding_macro::{cycles, genesis, hook_after, hook_before, read, service, write};
-use protocol::fixed_codec::FixedCodec;
-use protocol::traits::{
-    ExecutorParams, Service as ServiceTrait, ServiceSDK, StoreArray, StoreBool, StoreMap,
-    StoreString, StoreUint64,
-};
-use protocol::types::{Bytes, Hash, Metadata, ServiceContext, METADATA_KEY};
-use protocol::{ProtocolError, ProtocolErrorKind, ProtocolResult};
+const ATTESTED_INFO_KEY: &str = "attested_info";
 
-use crate::types::{GetContentPayload, GetContentResponse, StorePayload, StoreResponse};
+pub trait AttestationInterface {
+    fn inner_attest(
+        &mut self,
+        ctx: &ServiceContext,
+        payload: AttestInfoPayload,
+    ) -> ServiceResponse<Hash>;
 
-pub struct Service<SDK: ServiceSDK> {
-    sdk: SDK,
-    messages: Box<dyn StoreMap<Hash, String>>,
+    fn inner_query(
+        &self,
+        ctx: &ServiceContext,
+        payload: QueryAttestedInfoPayload,
+    ) -> ServiceResponse<QueryAttestedInfoResponse>;
+}
+
+pub struct AttestationService<SDK> {
+    _sdk: SDK,
+    attested_info: Box<dyn StoreMap<Hash, String>>,
+}
+
+impl<SDK: 'static + ServiceSDK> AttestationInterface for AttestationService<SDK> {
+    fn inner_attest(
+        &mut self,
+        ctx: &ServiceContext,
+        payload: AttestInfoPayload,
+    ) -> ServiceResponse<Hash> {
+        self.attest_info(ctx.clone(), payload)
+    }
+
+    fn inner_query(
+        &self,
+        ctx: &ServiceContext,
+        payload: QueryAttestedInfoPayload,
+    ) -> ServiceResponse<QueryAttestedInfoResponse> {
+        self.query_attested_info(ctx.clone(), payload)
+    }
 }
 
 #[service]
-impl<SDK: 'static + ServiceSDK> Service<SDK> {
-    pub fn new(mut sdk: SDK) -> ProtocolResult<Self> {
-        let messages: Box<dyn StoreMap<Hash, String>> = sdk.alloc_or_recover_map("messages")?;
-        Ok(Self { sdk, messages })
+impl<SDK: 'static + ServiceSDK> AttestationService<SDK> {
+    pub fn new(mut sdk: SDK) -> Self {
+        let attested_info: Box<dyn StoreMap<Hash, String>> =
+            sdk.alloc_or_recover_map(ATTESTED_INFO_KEY);
+
+        Self {
+            _sdk: sdk,
+            attested_info,
+        }
     }
 
-    #[cycles(210_00)]
+    #[cycles(21_000)]
     #[write]
-    fn store(
+    fn attest_info(
         &mut self,
         ctx: ServiceContext,
-        payload: StorePayload,
-    ) -> ProtocolResult<StoreResponse> {
-        let message = payload.message.clone();
-        let id = Hash::digest(Bytes::from(message + &ctx.get_caller().as_hex()));
-        self.messages.insert(id.clone(), payload.message)?;
-
-        Ok(StoreResponse { id })
+        payload: AttestInfoPayload,
+    ) -> ServiceResponse<Hash> {
+        if let Some(hash) = ctx.get_tx_hash() {
+            self.attested_info.insert(hash.clone(), payload.info);
+            ServiceResponse::from_succeed(hash)
+        } else {
+            ServiceResponse::from_error(101, "Can not get tx hash".to_string())
+        }
     }
 
     #[cycles(210_00)]
     #[read]
-    fn get(
+    fn query_attested_info(
         &self,
         ctx: ServiceContext,
-        payload: GetContentPayload,
-    ) -> ProtocolResult<GetContentResponse> {
-        let message = self.messages.get(&payload.id)?;
-        Ok(GetContentResponse { message })
+        payload: QueryAttestedInfoPayload,
+    ) -> ServiceResponse<QueryAttestedInfoResponse> {
+        if let Some(info) = self.attested_info.get(&payload.hash) {
+            ServiceResponse::from_succeed(QueryAttestedInfoResponse {
+                attested_info: info,
+            })
+        } else {
+            ServiceResponse::from_error(102, "Can not get attested info".to_string())
+        }
     }
 }

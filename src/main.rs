@@ -1,20 +1,21 @@
 use derive_more::{Display, From};
 
 use muta::MutaBuilder;
-use protocol::traits::{Service, ServiceMapping, ServiceSDK};
+use protocol::traits::{SDKFactory, Service, ServiceMapping, ServiceSDK};
 use protocol::{ProtocolError, ProtocolErrorKind, ProtocolResult};
 
 struct DefaultServiceMapping;
 
 impl ServiceMapping for DefaultServiceMapping {
-    fn get_service<SDK: 'static + ServiceSDK>(
+    fn get_service<SDK: 'static + ServiceSDK, Factory: SDKFactory<SDK>>(
         &self,
         name: &str,
-        sdk: SDK,
+        factory: &Factory,
     ) -> ProtocolResult<Box<dyn Service>> {
+        let sdk = factory.get_sdk(name)?;
+
         let service = match name {
-            "asset" => Box::new(asset::AssetService::new(sdk)?) as Box<dyn Service>,
-            "metadata" => Box::new(metadata::MetadataService::new(sdk)?) as Box<dyn Service>,
+            "metadata" => Box::new(metadata::MetadataService::new(sdk)) as Box<dyn Service>,
             _ => {
                 return Err(MappingError::NotFoundService {
                     service: name.to_owned(),
@@ -31,8 +32,7 @@ impl ServiceMapping for DefaultServiceMapping {
     }
 }
 
-#[tokio::main]
-async fn main() {
+fn main() {
     let builder = MutaBuilder::new();
 
     // set configs
@@ -45,7 +45,7 @@ async fn main() {
 
     let muta = builer.build().unwrap();
 
-    muta.run().await.unwrap()
+    muta.run().unwrap()
 }
 
 #[derive(Debug, Display, From)]

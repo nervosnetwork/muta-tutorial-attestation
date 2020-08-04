@@ -2,22 +2,19 @@ use serde::{Deserialize, Serialize};
 
 use protocol::types::Hash;
 
+type JsonString = String;
+
 #[derive(Deserialize, Serialize, Clone, Debug)]
-pub struct StorePayload {
-    pub message: String,
+pub struct AttestInfoPayload {
+    pub info: JsonString,
 }
 
 #[derive(Deserialize, Serialize, Clone, Debug)]
-pub struct StoreResponse {
-    pub id: Hash,
+pub struct QueryAttestedInfoPayload {
+    pub hash: Hash,
 }
 
-#[derive(Deserialize, Serialize, Clone, Debug)]
-pub struct GetContentPayload {
-    pub id: Hash,
-}
-
-#[derive(Deserialize, Serialize, Clone, Debug)]
-pub struct GetContentResponse {
-    pub message: String,
+#[derive(Default, Deserialize, Serialize, Clone, Debug)]
+pub struct QueryAttestedInfoResponse {
+    pub attested_info: JsonString,
 }
