@@ -1,4 +1,7 @@
+#[cfg(test)]
+mod tests;
 mod types;
+
 use binding_macro::{cycles, service};
 use protocol::traits::{ExecutorParams, ServiceResponse, ServiceSDK, StoreMap};
 use protocol::types::{Hash, ServiceContext};

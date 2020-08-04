@@ -1,5 +1,7 @@
+use asset::AssetService;
+use attestation::AttestationService;
 use derive_more::{Display, From};
-
+use metadata::MetadataService;
 use muta::MutaBuilder;
 use protocol::traits::{SDKFactory, Service, ServiceMapping, ServiceSDK};
 use protocol::{ProtocolError, ProtocolErrorKind, ProtocolResult};
@@ -15,20 +17,20 @@ impl ServiceMapping for DefaultServiceMapping {
         let sdk = factory.get_sdk(name)?;
 
         let service = match name {
-            "metadata" => Box::new(metadata::MetadataService::new(sdk)) as Box<dyn Service>,
-            _ => {
-                return Err(MappingError::NotFoundService {
-                    service: name.to_owned(),
-                }
-                .into())
-            }
+            "asset" => Box::new(AssetService::new(sdk)) as Box<dyn Service>,
+            "metadata" => Box::new(MetadataService::new(sdk)) as Box<dyn Service>,
+            "attestation" => Box::new(AttestationService::new(sdk)) as Box<dyn Service>,
+            _ => return Err(MappingError::NotFoundService(name.to_string()).into()),
         };
-
         Ok(service)
     }
 
     fn list_service_name(&self) -> Vec<String> {
-        vec!["asset".to_owned(), "metadata".to_owned()]
+        vec![
+            "asset".to_owned(),
+            "metadata".to_owned(),
+            "attestation".to_owned(),
+        ]
     }
 }
 
@@ -50,8 +52,8 @@ fn main() {
 
 #[derive(Debug, Display, From)]
 pub enum MappingError {
-    #[display(fmt = "service {:?} was not found", service)]
-    NotFoundService { service: String },
+    #[display(fmt = "service {:?} was not found", _0)]
+    NotFoundService(String),
 }
 impl std::error::Error for MappingError {}
 

@@ -353,9 +353,12 @@ dependencies = [
 name = "attestation"
 version = "0.1.0"
 dependencies = [
+ "async-trait",
  "binding-macro",
  "byteorder",
+ "cita_trie",
  "derive_more 0.99.3",
+ "framework",
  "muta-protocol",
  "serde",
  "serde_json",
